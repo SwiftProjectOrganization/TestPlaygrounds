@@ -8,59 +8,72 @@
 import SwiftUI
 import SwiftData
 
-struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+struct ContentView {
+  @State private var isLLMVisible: Bool = false
+  @State private var isAddItemViewVisible: Bool = false
+  @State private var prompt: String = ""
+  @State private var response: String = ""
+  @Environment(\.modelContext) private var modelContext
+  @Query private var items: [Item]
+}
 
-    var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
+extension ContentView: View {
+  var body: some View {
+    NavigationStack {
+      List {
+        ForEach(items) { item in
+          NavigationLink(item.prompt,
+                         value: item)
         }
+        .onDelete(perform: deleteItems)
+      }
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            isAddItemViewVisible = true
+          } label: {
+            Label("Add item", systemImage: "plus")
+          }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+          EditButton()
+        }
+      }
+      .navigationDestination(for: Item.self) { item in
+        viewItem(item: item)
+      }
     }
+    .sheet(isPresented: $isAddItemViewVisible) {
+      LLMView(isLLMVisible: $isLLMVisible)
+    }
+  }
+  
+  private func viewItem(item: Item) -> some View {
+    prompt = item.prompt
+    response = item.response
+    return ItemView(prompt: $prompt,
+             response: $response,
+             item: item)
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
+  }
+  
+  private func addItem() {
+    withAnimation {
+      let newItem = Item(timestamp: Date())
+      modelContext.insert(newItem)
     }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+  }
+  
+  private func deleteItems(offsets: IndexSet) {
+    withAnimation {
+      for index in offsets {
+        modelContext.delete(items[index])
+      }
     }
+  }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+  ContentView()
+    .modelContainer(for: Item.self, inMemory: true)
 }
